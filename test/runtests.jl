@@ -29,6 +29,7 @@ facts("Test error pathways") do
 end
 stats = getstats()
 FactCheck.clear_results()
+println(stats)
 @test stats["nSuccesses"] == 1
 @test stats["nFailures"] == 1
 @test stats["nErrors"] == 1
