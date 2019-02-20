@@ -27,7 +27,9 @@ facts("Test error pathways") do
     a_pending = @pending not_really_pending() "sorta pending"
     println(a_pending)
 end
+println("get stats")
 stats = getstats()
+println(stats)
 FactCheck.clear_results()
 println(stats)
 @test stats["nSuccesses"] == 1
