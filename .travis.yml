@@ -9,6 +9,6 @@ notifications:
 sudo: false
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-    - julia -e 'using InteractiveUtils; versioninfo(); Pkg.init(); Pkg.clone(pwd()); Pkg.test("FactCheck", coverage=true)'
+    - julia -e 'using InteractiveUtils; versioninfo(); using Pkg; Pkg.clone(pwd()); Pkg.test("FactCheck", coverage=true)'
 after_success:
     - julia -e 'cd(Pkg.dir("FactCheck")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'
