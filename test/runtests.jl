@@ -126,7 +126,7 @@ facts("Testing 'context'") do
     end
 
     context("indent by current LEVEL") do
-        original_STDOUT = STDOUT
+        original_STDOUT = stdout
         (out_read, out_write) = redirect_stdout()
         system_output = @async readstring(out_read)
 
