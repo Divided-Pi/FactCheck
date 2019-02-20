@@ -10,6 +10,7 @@ module TestFactCheck
 using FactCheck
 using Base.Test
 using Compat
+using ImportAll
 
 ############################################################
 # Before we excerse the other various parts of FactCheck,
@@ -36,14 +37,14 @@ print_with_color(:blue,"Done, begin actual FactCheck tests\n")
 
 ############################################################
 # Begin actual tests
-type Foo a end
-type Bar a end
-type Baz end
-type Bazz a end
-importall Base.Operators
+mutable struct Foo a end
+mutable struct Bar a end
+mutable struct Baz end
+mutable struct Bazz a end
+@importall(Base)
 ==(x::Foo, y::Foo) = x.a == y.a
 
-type MyError <: Exception
+mutable struct MyError <: Exception
 end
 
 module MyModule

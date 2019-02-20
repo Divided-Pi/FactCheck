@@ -42,9 +42,9 @@ end
 # with the same names in Base.Test, except for the addition of the
 # `ResultMetadata` type that is used to retain information about the test,
 # such as its file, line number, description, etc.
-abstract Result
+abstract type Result end
 
-type ResultMetadata
+mutable struct ResultMetadata
     line
     msg
     function ResultMetadata(;line=nothing, msg=nothing)
@@ -52,7 +52,7 @@ type ResultMetadata
     end
 end
 
-type Success <: Result
+mutable struct Success <: Result
     expr::Expr
     fact_type::Symbol
     lhs  # What it was
@@ -60,7 +60,7 @@ type Success <: Result
     meta::ResultMetadata
 end
 
-type Failure <: Result
+mutable struct Failure <: Result
     expr::Expr
     fact_type::Symbol
     lhs  # What it was
@@ -68,7 +68,7 @@ type Failure <: Result
     meta::ResultMetadata
 end
 
-type Error <: Result
+mutable struct Error <: Result
     expr::Expr
     fact_type::Symbol
     err::Exception
@@ -76,7 +76,7 @@ type Error <: Result
     meta::ResultMetadata
 end
 
-type Pending <: Result
+mutable struct Pending <: Result
 end
 
 # Collection of all results across facts
@@ -373,7 +373,7 @@ end
 
 # A TestSuite collects the results of a series of tests, as well as
 # some information about the tests such as their file and description.
-type TestSuite
+mutable struct TestSuite
     filename
     desc
     successes::Vector{Success}
