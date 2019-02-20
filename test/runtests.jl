@@ -8,7 +8,7 @@
 module TestFactCheck
 
 using FactCheck
-using Base.Test
+using Test
 using Compat
 using ImportAll
 
@@ -48,7 +48,7 @@ mutable struct MyError <: Exception
 end
 
 module MyModule
-    type MyError <: Exception
+    struct MyError <: Exception
     end
 end
 

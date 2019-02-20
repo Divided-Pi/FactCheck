@@ -542,7 +542,7 @@ function getstats(results)
             p += 1
         end
     end
-    assert(s+f+e+p == length(results))
+    @assert(s+f+e+p == length(results))
     @compat(Dict{String,Int}("nSuccesses" => s,
                                  "nFailures" => f,
                                  "nErrors" => e,
