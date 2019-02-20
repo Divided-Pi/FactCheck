@@ -18,7 +18,7 @@ using ImportAll
 # check we actually catch and report errors correctly. This
 # also allows us to test printing code for the Failure and
 # Error cases, which wouldn't be tested otherwise.
-print_with_color(:blue,"Testing Result counting and printing, not actual errors!\n")
+printstyled(:blue,"Testing Result counting and printing, not actual errors!\n")
 facts("Test error pathways") do
     a_success = @fact 1 --> 1 "I will never be seen"
     println(a_success)
