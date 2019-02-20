@@ -110,7 +110,7 @@ format_line(r::Result) = string(
 # Define printing functions for the result types
 function Base.show(io::IO, f::Failure)
     base_ind, sub_ind = get_indent()
-    print_with_color(:red, io, base_ind, "Failure")
+    printstyled(:red, io, base_ind, "Failure")
 
     if f.fact_type == :fact_throws
         # @fact_throws didn't get an error, or the right type of error
@@ -150,7 +150,7 @@ function Base.show(io::IO, f::Failure)
 end
 function Base.show(io::IO, e::Error)
     base_ind, sub_ind = get_indent()
-    print_with_color(:red, io, base_ind, "Error")
+    printstyled(:red, io, base_ind, "Error")
     println(io, format_line(e))
     println(io, sub_ind, "Expression: ", format_fact(e.expr))
     bt_str = sprint(showerror, e.err, e.backtrace)
@@ -159,7 +159,7 @@ function Base.show(io::IO, e::Error)
 end
 function Base.show(io::IO, s::Success)
     base_ind, sub_ind = get_indent()
-    print_with_color(:green, io, base_ind, "Success")
+    printstyled(:green, io, base_ind, "Success")
     print(io, format_line(s))
     if s.rhs == :fact_throws_error
         print(io, " :: ", s.lhs)
@@ -172,14 +172,14 @@ function Base.show(io::IO, s::Success)
 end
 function Base.show(io::IO, p::Pending)
     base_ind, sub_ind = get_indent()
-    print_with_color(:yellow, io, base_ind, "Pending")
+    printstyled(:yellow, io, base_ind, "Pending")
 end
 
 # When in compact mode, we simply print a single character
-print_compact(f::Failure) = print_with_color(:red, "F")
-print_compact(e::Error)   = print_with_color(:red, "E")
-print_compact(s::Success) = print_with_color(:green, ".")
-print_compact(s::Pending) = print_with_color(:yellow, "P")
+print_compact(f::Failure) = printstyled(:red, "F")
+print_compact(e::Error)   = printstyled(:red, "E")
+print_compact(s::Success) = printstyled(:green, ".")
+print_compact(s::Pending) = printstyled(:yellow, "P")
 
 const SPECIAL_FACTCHECK_FUNCTIONS =
     Set([:not, :exactly, :roughly, :anyof,
@@ -390,18 +390,18 @@ function Base.print(io::IO, suite::TestSuite)
     n_pend = length(suite.pending)
     total  = n_succ + n_fail + n_err + n_pend
     if n_fail == 0 && n_err == 0 && n_pend == 0
-        print_with_color(:green, io, "$n_succ $(pluralize("fact", n_succ)) verified.\n")
+        printstyled(:green, io, "$n_succ $(pluralize("fact", n_succ)) verified.\n")
     else
         println(io, "Out of $total total $(pluralize("fact", total)):")
-        n_succ > 0 && print_with_color(:green, io, "  Verified: $n_succ\n")
-        n_fail > 0 && print_with_color(:red,   io, "  Failed:   $n_fail\n")
-        n_err  > 0 && print_with_color(:red,   io, "  Errored:  $n_err\n")
-        n_pend > 0 && print_with_color(:yellow,io, "  Pending:  $n_pend\n")
+        n_succ > 0 && printstyled(:green, io, "  Verified: $n_succ\n")
+        n_fail > 0 && printstyled(:red,   io, "  Failed:   $n_fail\n")
+        n_err  > 0 && printstyled(:red,   io, "  Errored:  $n_err\n")
+        n_pend > 0 && printstyled(:yellow,io, "  Pending:  $n_pend\n")
     end
 end
 
 function print_header(suite::TestSuite)
-    print_with_color(:bold,
+    printstyled(:bold,
         suite.desc     != nothing ? "$(suite.desc)" : "",
         suite.filename != nothing ? " ($(suite.filename))" : "",
         CONFIG[:compact] ? ": " : "\n")

@@ -34,7 +34,7 @@ FactCheck.clear_results()
 @test stats["nErrors"] == 1
 @test stats["nPending"] == 1
 @test stats["nNonSuccessful"] == 2
-print_with_color(:blue,"Done, begin actual FactCheck tests\n")
+printstyled(:blue,"Done, begin actual FactCheck tests\n")
 
 ############################################################
 # Begin actual tests
