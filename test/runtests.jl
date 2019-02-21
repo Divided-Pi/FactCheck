@@ -76,7 +76,7 @@ facts("Testing core functionality") do
             3
             FactCheck.getline()
         end
-        @fact hmm() --> 79 #used to be 72 but I added lines above it pushing it down
+        @fact hmm() --> 77 #used to be 72 but I added lines above it pushing it down
     end
 end
 
@@ -128,7 +128,7 @@ facts("Testing 'context'") do
     context("indent by current LEVEL") do
         original_STDOUT = stdout
         (out_read, out_write) = redirect_stdout()
-        system_output = @async read(pipeline(out_read))
+        system_output = @async String(read(out_read))
 
         context("intended") do
             close(out_write)
