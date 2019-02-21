@@ -8,9 +8,10 @@
 module TestFactCheck
 
 using FactCheck
-using Test
+#using Test
 using Compat
 import Pkg; Pkg.add("ImportAll")
+Pkg.add("Test")
 using ImportAll
 
 ############################################################
