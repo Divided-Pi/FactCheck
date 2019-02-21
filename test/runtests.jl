@@ -36,7 +36,7 @@ println(stats)
 @test stats["nFailures"] == 1
 @test stats["nErrors"] == 1 # no errors is probably an error, but I think assert not catches 2^-1 == 0.5
 @test stats["nPending"] == 1
-@test stats["nNonSuccessful"] == 1
+@test stats["nNonSuccessful"] == 2
 printstyled(:blue,"Done, begin actual FactCheck tests\n")
 
 ############################################################
