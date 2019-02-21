@@ -23,7 +23,7 @@ facts("Test error pathways") do
     a_success = @fact 1 --> 1 "I will never be seen"
     println(a_success)
     a_failure = @fact 1 --> 2 "one doesn't equal two!"
-    a_error   = @fact 2^-1 --> 0.5 "domains are tricky"
+    a_error   = @fact sqrt(-1) --> im "domains are tricky" #formerly 2^-1 --> 0.5 but 2^-1 no longer throws a domain error
     a_pending = @pending not_really_pending() "sorta pending"
     println(a_pending)
 end
@@ -52,7 +52,7 @@ mutable struct MyError <: Exception
 end
 
 module MyModule
-    struct MyError <: Exception
+    mutable struct MyError <: Exception
     end
 end
 
@@ -60,10 +60,10 @@ facts("Testing core functionality") do
     @fact 1 --> 1
     @fact 2*2 --> 4
     @fact uppercase("foo") --> "FOO"
-    @fact_throws 2^-1
-    @fact_throws 2^-1 "a domain error happend"
-    @fact_throws DomainError 2^-1
-    @fact_throws DomainError 2^-1 "a domain error happened"
+    @fact_throws sqrt(-1) #2^-1 no longer throws a DomainError
+    @fact_throws sqrt(-1) "a domain error happend"
+    @fact_throws DomainError sqrt(-1)
+    @fact_throws DomainError sqrt(-1) "a domain error happened"
     @fact_throws MyError throw(MyError())
     @fact_throws MyError throw(MyError()) "my error happend"
     @fact_throws MyModule.MyError throw(MyModule.MyError())
@@ -76,7 +76,7 @@ facts("Testing core functionality") do
             3
             FactCheck.getline()
         end
-        @fact hmm() --> 72
+        @fact hmm() --> 77 #used to be 72 but I added lines above it pushing it down
     end
 end
 
