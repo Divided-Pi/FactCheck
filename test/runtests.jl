@@ -44,7 +44,7 @@ printstyled(:blue,"Done, begin actual FactCheck tests\n")
 mutable struct Foo a end
 mutable struct Bar a end
 struct Baz end
-struct Bazz a end
+mutable struct Bazz a end
 @importall(Base)
 ==(x::Foo, y::Foo) = x.a == y.a
 
