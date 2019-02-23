@@ -2,7 +2,7 @@
 
 ### A test framework for [Julia](http://julialang.org)
 
-[![Build Status](https://travis-ci.org/JuliaLang/FactCheck.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/FactCheck.jl)
+[![Build Status](https://travis-ci.org/Divided-Pi/FactCheck.svg?branch=master)](https://travis-ci.org/Divided-Pi/FactCheck)
 [![codecov.io](http://codecov.io/github/JuliaLang/FactCheck.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaLang/FactCheck.jl?branch=master)
 
 [![FactCheck](http://pkg.julialang.org/badges/FactCheck_0.3.svg)](http://pkg.julialang.org/?pkg=FactCheck&ver=0.3)
