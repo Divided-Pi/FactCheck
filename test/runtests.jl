@@ -18,6 +18,7 @@ using ImportAll
 # check we actually catch and report errors correctly. This
 # also allows us to test printing code for the Failure and
 # Error cases, which wouldn't be tested otherwise.
+FactCheck.clear_results()
 printstyled(:blue,"Testing Result counting and printing, not actual errors!\n")
 facts("Test error pathways") do
     a_success = @fact 1 --> 1 "I will never be seen"
@@ -76,7 +77,7 @@ facts("Testing core functionality") do
             3
             FactCheck.getline()
         end
-        @fact hmm() --> 77 #used to be 72 but I added lines above it pushing it down
+        @fact hmm() --> 78 #used to be 72 but I added lines above it pushing it down
     end
 end
 
