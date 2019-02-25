@@ -1,0 +1,221 @@
+        - ############################################################
+        - # FactCheck.jl
+        - # A testing framework for Julia
+        - # http://github.com/JuliaLang/FactCheck.jl
+        - # MIT Licensed
+        - ############################################################
+        - 
+        3 module TestFactCheck
+        - 
+        - using FactCheck
+        - using Test
+        - using Compat
+        - import Pkg; Pkg.add("ImportAll")
+        - using ImportAll
+        - 
+        - ############################################################
+        - # Before we excerse the other various parts of FactCheck,
+        - # check we actually catch and report errors correctly. This
+        - # also allows us to test printing code for the Failure and
+        - # Error cases, which wouldn't be tested otherwise.
+        - FactCheck.clear_results()
+        - printstyled(:blue,"Testing Result counting and printing, not actual errors!\n")
+        - facts("Test error pathways") do
+        2     a_success = @fact 1 --> 1 "I will never be seen"
+        2     println(a_success)
+        2     a_failure = @fact 1 --> 2 "one doesn't equal two!"
+        2     a_error   = @fact sqrt(-1) --> im "domains are tricky" #formerly 2^-1 --> 0.5 but 2^-1 no longer throws a domain error
+        2     a_pending = @pending not_really_pending() "sorta pending"
+        -     println(a_pending)
+        - end
+        - println("get stats")
+        - stats = getstats()
+        - println(stats)
+        - FactCheck.clear_results()
+        - println(stats)
+        - @test stats["nSuccesses"] == 1 #nsuccesses keeps returning 2
+        - @test stats["nFailures"] == 1
+        - @test stats["nErrors"] == 1 # no errors is probably an error, but I think assert not catches 2^-1 == 0.5
+        - @test stats["nPending"] == 1
+        - @test stats["nNonSuccessful"] == 2
+        - printstyled(:blue,"Done, begin actual FactCheck tests\n")
+        - 
+        - ############################################################
+        - # Begin actual tests
+        3 mutable struct Foo a end
+        - mutable struct Bar a end
+        - struct Baz end
+        2 mutable struct Bazz a end
+        - @importall(Base)
+        2 ==(x::Foo, y::Foo) = x.a == y.a
+        - 
+        - mutable struct MyError <: Exception
+        2 end
+        - 
+        - module MyModule
+        -     mutable struct MyError <: Exception
+        2     end
+        - end
+        - 
+        - facts("Testing core functionality") do
+        1     @fact 1 --> 1
+        2     @fact 2*2 --> 4
+        2     @fact uppercase("foo") --> "FOO"
+        2     @fact_throws sqrt(-1) #2^-1 no longer throws a DomainError
+        2     @fact_throws sqrt(-1) "a domain error happend"
+        2     @fact_throws DomainError sqrt(-1)
+        1     @fact_throws DomainError sqrt(-1) "a domain error happened"
+        2     @fact_throws MyError throw(MyError())
+        -     @fact_throws MyError throw(MyError()) "my error happend"
+        -     @fact_throws MyModule.MyError throw(MyModule.MyError())
+        -     @fact_throws MyModule.MyError throw(MyModule.MyError()) "my error happend"
+        -     @fact 2*[1,2,3] --> [2,4,6]
+        -     @fact Foo(1) --> Foo(1)
+        -     if VERSION >= v"0.5-"
+        -         hmm = function()
+        -             2
+        -             3
+        1             FactCheck.getline()
+        -         end
+        -         @fact hmm() --> 78 #used to be 72 but I added lines above it pushing it down
+        -     end
+        - end
+        - 
+        - facts("Testing invalid @fact_throws macro") do
+        1     @fact_throws LoadError eval(:(@fact_throws "this needs to be an expression"))
+        3     @fact_throws LoadError eval(:(@fact_throws "wrong type" :wrong_type))
+        -     @fact_throws LoadError eval(:(@fact_throws "wrong type" error("this is an error")))
+        - end
+        - 
+        - facts("Testing 'context'") do
+        -     # FactCheck.LEVEL starts from 0
+        1     @fact FactCheck.LEVEL --> 0
+        - 
+        2     context("context will increase LEVEL and set contexts") do
+        1         @fact FactCheck.LEVEL --> 1
+        2         @fact FactCheck.contexts[end] --> "context will increase LEVEL and set contexts"
+        -     end
+        - 
+        3     @fact FactCheck.LEVEL --> 0
+        - 
+        -     # context called without 'desc' will still increase LEVEL
+        1     context() do
+        2         @fact FactCheck.LEVEL --> 1
+        -     end
+        - 
+        -     context("nested context") do
+        1         @fact FactCheck.LEVEL --> 1
+        2         @fact FactCheck.contexts[end] --> "nested context"
+        - 
+        -         context("inner") do
+        1             @fact FactCheck.LEVEL --> 2
+        2             @fact FactCheck.contexts[end] --> "inner"
+        -         end
+        -     end
+        - 
+        -     facts("'facts' doesn't increase LEVEL") do
+        2         @fact FactCheck.LEVEL --> 0
+        -     end
+        - 
+        -     context("will execute the function which is passed to the 'context'") do
+        2         executed = false
+        2         f() = (executed = true)
+        - 
+        -         @fact executed --> false
+        1         context(f, "Run f")
+        2         @fact executed --> true
+        -     end
+        - 
+        -     context("indent by current LEVEL") do
+        2         original_STDOUT = stdout
+        -         (out_read, out_write) = redirect_stdout();
+        - 
+        1         context("intended") do
+        2             redirect_stdout(original_STDOUT)
+        1             close(out_write)
+        - 
+        -             # current LEVEL is 2
+        1             system_output = read(out_read, String)
+        2             expected_str = string(FactCheck.INDENT^2,"> intended\n")
+        -             @fact system_output --> expected_str
+        -             close(out_read)
+        - 
+        -         end
+        -     end #removing this block until I can figure it out, I think FactCheck is mostly working though
+        - end
+        - 
+        - facts("FactCheck assertion helper functions") do
+        - 
+        2     context("`not` works for values and functions") do
+        1         notone = not(1)
+        -         @fact notone(2) --> true
+        3         @fact notone(1) --> false
+        2         @fact 2 --> not(1)
+        - 
+        2         noteven = not(iseven)
+        -         @fact noteven(3) --> true
+        -         @fact noteven(2) --> false
+        -         @fact not(iseven)(2) --> false
+        -         @fact 3 --> not(iseven)
+        -     end
+        - 
+        1     context("`exactly` can be used to check object equality") do
+        1         @fact exactly(exactly)(exactly) --> true
+        - 
+        1         x() = ()
+        3         @fact exactly(x)(x) --> true
+        - 
+        -         # types with no fields return a singleton object when instantiated
+        -         @fact exactly(Baz())(Baz()) --> true
+        - 
+        -         @fact exactly(Bazz(1))(Bazz(1)) --> false
+        -     end
+        - 
+        1     context("`roughly` compares numbers... roughly") do
+        1         @fact 2.4999999999999 --> roughly(2.5)
+        3         @fact 9.5 --> roughly(10; atol=1.0)
+        -         @fact 10.5 --> roughly(10; atol=1.0)
+        -         @fact 10.5 --> roughly(10, 1.0)
+        -     end
+        - 
+        1     context("`roughly` compares matrixes... roughly") do
+        2         X = [1.1 1.2; 2.1 2.2]
+        1         Y = X + [+1e-8 -1e-8; -1e-8 +1e-8]
+        1         Z = [1 1; 2 2]
+        -         @fact X --> roughly(Y)
+        2         @fact X --> roughly(Z; atol=0.4)
+        -         @fact X --> roughly(Z, 0.4)
+        -     end
+        - 
+        1     context("`anyof` compares with all arguments") do
+        1         @fact 2+2 --> anyof(4, :four, "four")
+        2         @fact 5   --> not(anyof(:five, "five"))
+        -     end
+        - 
+        1     context("`anyof` works for functions") do
+        2         @fact 5 --> anyof(5.1, roughly(5.1,0.01), roughly(4.9,0.2))
+        -     end
+        - 
+        1     context("less_than") do
+        2         @fact 1 --> less_than(2)
+        -     end
+        - 
+        1     context("less_than_or_equal") do
+        1         @fact 1 --> less_than_or_equal(2)
+        2         @fact 1 --> less_than_or_equal(1)
+        -     end
+        - 
+        1     context("greater_than") do
+        2         @fact 2 --> greater_than(1)
+        -     end
+        - 
+        1     context("greater_than_or_equal") do
+        1         @fact 2 --> greater_than_or_equal(1)
+        2         @fact 2 --> greater_than_or_equal(2)
+        -     end
+        - end
+        - 
+        - exitstatus()
+        - 
+        - end # module
+        - 

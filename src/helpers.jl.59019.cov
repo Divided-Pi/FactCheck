@@ -1,0 +1,51 @@
+        - ############################################################
+        - # FactCheck.jl
+        - # A testing framework for Julia
+        - # http://github.com/JuliaLang/FactCheck.jl
+        - # MIT Licensed
+        - ############################################################
+        - # Assertion helpers
+        - # - not
+        - # - exactly
+        - # - roughly
+        - # - anyof
+        - # - less_than
+        - # - less_than_or_equal
+        - # - greater_than_or_equal
+        - ############################################################
+        - 
+        - # not: logical not for values and functions
+        3 not(x) = isa(x, Function) ? (y) -> !x(y) :
+        2                             (y) -> x != y
+        - 
+        - # exactly: tests object/function equality (i.e. ===)
+        1 exactly(x) = (y) -> x === y
+        - 
+        - # approx/roughly: Comparing numbers approximately
+        7 roughly(x::Number, atol) = (y::Number) -> isapprox(y, x, atol=atol)
+        3 roughly(x::Number; kvtols...) = (y::Number) -> isapprox(y, x; kvtols...)
+        - 
+        2 roughly(A::AbstractArray, atol) = (B::AbstractArray) -> begin
+        2     size(A) != size(B) && return false
+        2     return isapprox(A, B, atol=atol)
+        - end
+        2 roughly(A::AbstractArray; kvtols...) = (B::AbstractArray) -> begin
+        3     size(A) != size(B) && return false
+        5     return isapprox(A, B; kvtols...)
+        - end
+        - 
+        - # anyof: match any of the arguments
+        4 anyof(x...) = y -> any(arg->(isa(arg,Function) ? arg(y)::Bool : (y==arg)), x)
+        - 
+        - # less_than: Comparing two numbers
+        - less_than(compared) = (compare) -> compare < compared
+        - 
+        - # less_than_or_equal: Comparing two numbers
+        - less_than_or_equal(compared) = (compare) -> compare <= compared
+        - 
+        - # greater_than: Comparing two numbers
+        - greater_than(compared) = (compare) -> compare > compared
+        - 
+        - # greater_than_or_equal: Comparing two numbers
+        - greater_than_or_equal(compared) = (compare) -> compare >= compared
+        - 

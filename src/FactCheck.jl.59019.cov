@@ -1,0 +1,580 @@
+        - ######################################################################
+        - # FactCheck.jl
+        - # A testing framework for Julia
+        - # http://github.com/JuliaLang/FactCheck.jl
+        - # MIT Licensed
+        - ######################################################################
+        - 
+        - module FactCheck
+        - 
+        - using Compat
+        - import Compat.String
+        - 
+        - export @fact, @fact_throws, @pending,
+        -        facts, context,
+        -        getstats, exitstatus,
+        -        # Assertion helpers
+        -        not,
+        -        exactly,
+        -        roughly,
+        -        anyof,
+        -        less_than, less_than_or_equal,
+        -        greater_than, greater_than_or_equal
+        - 
+        - const INDENT = "  "
+        - 
+        - # Global configuration for FactCheck
+        - const CONFIG = @compat Dict(:compact => false, :only_stats => false)  # Compact output off by default
+        - # Not exported: sets output style
+        - function setstyle(style)
+        -     global CONFIG
+        -     CONFIG[:compact] = (style == :compact)
+        - end
+        - 
+        - function onlystats(flag)
+        -     global CONFIG
+        -     CONFIG[:only_stats] = flag
+        - end
+        - 
+        - ######################################################################
+        - # Success, Failure, Error <: Result
+        - # Represents the result of a test. These are very similar to the types
+        - # with the same names in Base.Test, except for the addition of the
+        - # `ResultMetadata` type that is used to retain information about the test,
+        - # such as its file, line number, description, etc.
+        - abstract type Result end
+        - 
+        - mutable struct ResultMetadata
+        -     line
+        -     msg
+        -     function ResultMetadata(;line=nothing, msg=nothing)
+       60         new(line, msg)
+        -     end
+        - end
+        - 
+        - mutable struct Success <: Result
+       58     expr::Expr
+        -     fact_type::Symbol
+        -     lhs  # What it was
+        -     rhs  # What it should have been
+        -     meta::ResultMetadata
+        - end
+        - 
+        - mutable struct Failure <: Result
+        1     expr::Expr
+        -     fact_type::Symbol
+        -     lhs  # What it was
+        -     rhs  # What it should have been
+        -     meta::ResultMetadata
+        - end
+        - 
+        - mutable struct Error <: Result
+        2     expr::Expr
+        -     fact_type::Symbol
+        -     err::Exception
+        -     backtrace
+        -     meta::ResultMetadata
+        - end
+        - 
+        - mutable struct Pending <: Result
+        1 end
+        - 
+        - # Collection of all results across facts
+        - allresults = Result[]
+        - function clear_results()
+        2     global allresults;
+        2     allresults = Result[]
+        - end
+        - 
+        - # Formats a fact expression
+        - function format_fact(ex::Expr)
+        9     if ex.head == :(-->) || ex.head == :(=>)
+        -         # :(fn(1) --> 2) to 'fn(1) --> 2'
+        -         # :("1"*"1" --> "11") to '"1" * "1" --> "11"'
+        -         # We handle non-expresion arguments differently,
+        -         # otherwise, e.g. quote marks on strings disappear
+        -         x, y = ex.args
+        3         x_str = sprint(isa(x,Expr) || isa(x,Symbol) ? print : show, x)
+        3         y_str = sprint(isa(y,Expr) || isa(y,Symbol) ? print : show, y)
+        3         string(x_str, " --> ", y_str)
+        -     else
+        -         # Something else, that maybe didn't have a -->
+        -         # such as @fact_throws. Punt and just stringify
+        0         string(ex)
+        -     end
+        - end
+        - 
+        - # Builds string with line and context annotations, if available
+       18 format_line(r::Result) = string(
+        -     r.meta.line != nothing ? " :: (line:$(r.meta.line))" : "",
+        -     isempty(contexts) ? "" : " :: $(contexts[end])",
+        -     r.meta.msg != nothing ? " :: $(r.meta.msg)" : "")
+        - 
+        - # Define printing functions for the result types
+        - function Base.show(io::IO, f::Failure)
+        2     base_ind, sub_ind = get_indent()
+        1     printstyled(:red, io, base_ind, "Failure")
+        - 
+        1     if f.fact_type == :fact_throws
+        -         # @fact_throws didn't get an error, or the right type of error
+        0         println(io, format_line(f), " :: ", f.lhs)
+        0         print(io, sub_ind, "Expression: ", f.expr)
+        0         if f.rhs != :fact_throws_noerror
+        -             println(io)
+        0             println(io, sub_ind, "  Expected: ", f.rhs[1])
+        0             print(  io, sub_ind, "  Occurred: ", f.rhs[2])
+        -         end
+        1     elseif f.fact_type == :fact
+        -         # @fact didn't get the right result
+        -         args = f.expr.args
+        1         println(io, format_line(f), " :: fact was false")
+        1         println(io, sub_ind, "Expression: ", format_fact(f.expr))
+        2         if length(args) >= 2 && _factcheck_function(args[2]) != nothing
+        -             # Fancy helper fact
+        0             fcFunc = _factcheck_function(args[2])
+        0             if haskey(FACTCHECK_FUN_NAMES, fcFunc)
+        0                 print(io, sub_ind, "  Expected: ",
+        -                         sprint(show, f.lhs),
+        -                         " ", FACTCHECK_FUN_NAMES[fcFunc], " ",
+        -                         sprint(show, f.rhs))
+        -             else
+        0                 print(io, sub_ind, "  Expected: ",
+        -                         sprint(show, f.lhs), " --> ", fcFunc,
+        -                         "(", sprint(show, f.rhs), ")")
+        -             end
+        -         else
+        -             # Normal equality-test-style fact
+        1             println(io, sub_ind, "  Expected: ", sprint(show, f.rhs))
+        1             print(  io, sub_ind, "  Occurred: ", sprint(show, f.lhs))
+        -         end
+        -     else
+        0         error("Unknown fact type: ", f.fact_type)
+        -     end
+        - end
+        - function Base.show(io::IO, e::Error)
+        2     base_ind, sub_ind = get_indent()
+        1     printstyled(:red, io, base_ind, "Error")
+        1     println(io, format_line(e))
+        1     println(io, sub_ind, "Expression: ", format_fact(e.expr))
+        1     bt_str = sprint(showerror, e.err, e.backtrace)
+       22     print(io, join(map(line->string(sub_ind,line),
+        -                         split(bt_str, "\n")), "\n"))
+        - end
+        - function Base.show(io::IO, s::Success)
+        2     base_ind, sub_ind = get_indent()
+        1     printstyled(:green, io, base_ind, "Success")
+        1     print(io, format_line(s))
+        1     if s.rhs == :fact_throws_error
+        0         print(io, " :: ", s.lhs)
+        -     else
+        -         println(io, " :: fact was true")
+        1         println(io, sub_ind, "Expression: ", format_fact(s.expr))
+        1         println(io, sub_ind, "  Expected: ", sprint(show, s.rhs))
+        1         print(  io, sub_ind, "  Occurred: ", sprint(show, s.lhs))
+        -     end
+        - end
+        - function Base.show(io::IO, p::Pending)
+        1     base_ind, sub_ind = get_indent()
+        1     printstyled(:yellow, io, base_ind, "Pending")
+        - end
+        - 
+        - # When in compact mode, we simply print a single character
+        - print_compact(f::Failure) = printstyled(:red, "F")
+        0 print_compact(e::Error)   = printstyled(:red, "E")
+        - print_compact(s::Success) = printstyled(:green, ".")
+        0 print_compact(s::Pending) = printstyled(:yellow, "P")
+        - 
+        - const SPECIAL_FACTCHECK_FUNCTIONS =
+        -     Set([:not, :exactly, :roughly, :anyof,
+        -          :less_than, :less_than_or_equal, :greater_than, :greater_than_or_equal])
+        - 
+        - @compat const FACTCHECK_FUN_NAMES =
+        -     Dict{Symbol,AbstractString}(
+        -       :roughly => "≅",
+        -       :less_than => "<",
+        -       :less_than_or_equal => "≤",
+        -       :greater_than => ">",
+        -       :greater_than_or_equal => "≥")
+        - 
+        - isexpr(x) = isa(x, Expr)
+        - iscallexpr(x) = isexpr(x) && x.head == :call
+        2 isdotexpr(x) = isexpr(x) && x.head == :.
+        - isquoteexpr(x) = isexpr(x) && x.head == :quote
+       36 isparametersexpr(x) = isexpr(x) && x.head == :parameters
+        - 
+        - function _factcheck_function(assertion)
+      101     iscallexpr(assertion) || return nothing
+        - 
+        -     # checking for lhs => roughly(rhs)
+       19     if assertion.args[1] in SPECIAL_FACTCHECK_FUNCTIONS
+       18         return assertion.args[1]
+        -     end
+        - 
+        -     # checking for lhs => FactCheck.roughly(rhs)
+        2     isdotexpr(assertion.args[1]) || return nothing
+        -     dotexpr = assertion.args[1]
+        0     length(dotexpr.args) >= 2 || return nothing
+        0     if isquoteexpr(dotexpr.args[2])
+        0         quoteexpr = dotexpr.args[2]
+        0         if length(quoteexpr.args) >= 1 && quoteexpr.args[1] in SPECIAL_FACTCHECK_FUNCTIONS
+        0             return quoteexpr.args[1]
+        -         else
+        0             return nothing
+        -         end
+        -     end
+        - 
+        -     # sometimes it shows up as a QuoteNode...
+        0     if isa(dotexpr.args[2], QuoteNode) && dotexpr.args[2].value in SPECIAL_FACTCHECK_FUNCTIONS
+        0         return dotexpr.args[2].value
+        -     end
+        0     nothing
+        - end
+        - 
+        - 
+        - ######################################################################
+        - # Core testing macros and functions
+        - 
+        - # @fact takes an assertion of the form LHS --> RHS, and replaces it
+        - # with code to evaluate that fact (depending on the type of the RHS),
+        - # and produce and record a result based on the outcome
+        - macro fact(factex::Expr, args...)
+       98     if factex.head != :(-->) && factex.head != :(=>)
+        0         error("Incorrect usage of @fact: $factex")
+        -     end
+       49     if factex.head == :(=>)
+        0         Base.warn_once("The `=>` syntax is deprecated, use `-->` instead")
+        -     end
+        -     # Extract the two sides of the fact
+       49     lhs, initial_rhs = factex.args
+        -     # If there is another argument to the macro, assume it is a
+        -     # message and record it
+       49     msg = length(args) > 0 ? args[1] : (:nothing)
+        - 
+        -     # rhs is the assertion, unless it's wrapped by a special FactCheck function
+       49     rhs = initial_rhs
+       49     if _factcheck_function(initial_rhs) != nothing
+       18         rhs = initial_rhs.args[isparametersexpr(initial_rhs.args[2]) ? 3 : 2]
+        -     end
+        - 
+       49     quote
+        -         # Build a function (predicate) that, depending on the nature of
+        -         # the RHS, either compares the sides or applies the RHS to the LHS
+       49         predicate = function(lhs_value)
+       24             rhs_value = $(esc(initial_rhs))
+        -             if isa(rhs_value, Function)
+        -                 # The RHS is a function, so instead of testing for equality,
+        -                 # return the value of applying the RHS to the LHS
+        7                 (rhs_value(lhs_value), lhs_value, $(esc(rhs)))
+        -             else
+        -                 # The RHS is a value, so test for equality
+       37                 (rhs_value == lhs_value, lhs_value, $(esc(rhs)))
+        -             end
+        -         end
+        -         # Replace @fact with a call to the do_fact function that constructs
+        -         # the test result object by evaluating the
+      133         do_fact(() -> predicate($(esc(lhs))),
+        -                 $(Expr(:quote, factex)),
+        -                 :fact,
+        -                 ResultMetadata(line=getline(),
+        -                                msg=$(esc(msg))))
+        -     end
+        - end
+        - 
+        - # `@fact_throws` is similar to `@fact`, except it only checks if
+        - # the expression throws an error or not - there is no explict
+        - # assertion to compare against.
+        - macro fact_throws(args...)
+       28     expr, extype, msg = nothing, nothing, nothing
+       14     nargs = length(args)
+       14     if nargs == 1
+        2         if isa(args[1],Expr)
+        1             expr = args[1]
+        -         else
+        1             throw(ArgumentError("invalid @fact_throws macro"))
+        -         end
+       12     elseif nargs == 2
+        9         if (isa(args[1],Symbol) || isa(args[1],Expr)) && isa(args[2],Expr)
+        6             extype, expr = args
+        3         elseif isa(args[1],Expr)
+        1             expr, msg = args
+        -         else
+        2             throw(ArgumentError("invalid @fact_throws macro"))
+        -         end
+        3     elseif nargs >= 3
+        3         if (isa(args[1],Symbol) || isa(args[1], Expr)) && isa(args[2],Expr)
+        3             extype, expr, msg = args
+        -         else
+        0             throw(ArgumentError("invalid @fact_throws macro"))
+        -         end
+        -     end
+       11     quote
+       32         do_fact(() -> try
+       11                           $(esc(expr))
+        8                           (false, "no exception was thrown", :fact_throws_noerror)
+        -                       catch ex
+       11                           $(if extype === nothing
+        2                               :((true, "an exception was thrown", :fact_throws_error))
+        -                             else
+        9                               :(if isa(ex,$(esc(extype)))
+        9                                   (true, "correct exception was throw", :fact_throws_error)
+        -                                 else
+        0                                   (false, "wrong exception was thrown",
+        -                                     ($(esc(extype)),typeof(ex)) )
+        -                                 end)
+        -                             end)
+        -                       end,
+        -                 $(Expr(:quote, expr)),
+        -                 :fact_throws,
+        -                 ResultMetadata(line=getline(),msg=$(esc(msg))))
+        -     end
+        - end
+        - 
+        - # `do_fact` constructs a Success, Failure, or Error depending on the
+        - # outcome of a test and passes it off to the active test handler
+        - # `FactCheck.handlers[end]`. It finally returns the test result.
+        - function do_fact(thunk::Function, factex::Expr, fact_type::Symbol, meta::ResultMetadata)
+      120     result = try
+       53         res, val, rhs = thunk()
+      166         res ? Success(factex, fact_type, val, rhs, meta) :
+        -                 Failure(factex, fact_type, val, rhs, meta)
+        -     catch err
+        1         Error(factex, fact_type, err, catch_backtrace(), meta)
+        -     end
+        - 
+      240     !isempty(handlers) && handlers[end](result)
+      120     if CONFIG[:only_stats]
+        0         updatestats!(getstats([result]))
+        -     else
+       60         push!(allresults, result)
+        -     end
+      120     CONFIG[:compact] && print_compact(result)
+       60     result
+        - end
+        - 
+        - # `@pending` is a no-op test - it doesn't do anything except record
+        - # its existance in the final totals of tests "run"
+        - macro pending(factex::Expr, args...)
+        2     quote
+        -         result = Pending()
+        -         !isempty(handlers) && handlers[end](result)
+        -         if CONFIG[:only_stats]
+        -             updatestats!(getstats([result]))
+        -         else
+        -             push!(allresults, result)
+        -         end
+        -         CONFIG[:compact] && print_compact(result)
+        -         result
+        -     end
+        - end
+        - 
+        - ######################################################################
+        - # Grouping of tests
+        - #
+        - # `facts` describes a top-level test scope, which can contain
+        - # `contexts` to group similar tests. Test results will be collected
+        - # instead of throwing an exception immediately.
+        - 
+        - # A TestSuite collects the results of a series of tests, as well as
+        - # some information about the tests such as their file and description.
+        - mutable struct TestSuite
+        6     filename
+        -     desc
+        -     successes::Vector{Success}
+        -     failures::Vector{Failure}
+        -     errors::Vector{Error}
+        -     pending::Vector{Pending}
+        - end
+        - TestSuite(f, d) = TestSuite(f, d, Success[], Failure[], Error[], Pending[])
+        - 
+        - function Base.print(io::IO, suite::TestSuite)
+        6     n_succ = length(suite.successes)
+        -     n_fail = length(suite.failures)
+        -     n_err  = length(suite.errors)
+        -     n_pend = length(suite.pending)
+        -     total  = n_succ + n_fail + n_err + n_pend
+       16     if n_fail == 0 && n_err == 0 && n_pend == 0
+       15         printstyled(:green, io, "$n_succ $(pluralize("fact", n_succ)) verified.\n")
+        -     else
+        1         println(io, "Out of $total total $(pluralize("fact", total)):")
+        2         n_succ > 0 && printstyled(:green, io, "  Verified: $n_succ\n")
+        2         n_fail > 0 && printstyled(:red,   io, "  Failed:   $n_fail\n")
+        2         n_err  > 0 && printstyled(:red,   io, "  Errored:  $n_err\n")
+        3         n_pend > 0 && printstyled(:yellow,io, "  Pending:  $n_pend\n")
+        -     end
+        - end
+        - 
+        - function print_header(suite::TestSuite)
+       36     printstyled(:bold,
+        -         suite.desc     != nothing ? "$(suite.desc)" : "",
+        -         suite.filename != nothing ? " ($(suite.filename))" : "",
+        -         CONFIG[:compact] ? ": " : "\n")
+        - end
+        - 
+        - # The last handler function found in `handlers` will be passed
+        - # test results.
+        - const handlers = Function[]
+        - 
+        - # A list of test contexts. `contexts[end]` should be the
+        - # inner-most context.
+        - const contexts = AbstractString[]
+        - 
+        - # Constructs a function that handles Successes, Failures, and Errors,
+        - # pushing them into a given TestSuite and printing Failures and Errors
+        - # as they arrive (unless in compact mode, in which case we delay
+        - # printing details until the end).
+        - function make_handler(suite::TestSuite)
+        6     function delayed_handler(r::Success)
+      174         push!(suite.successes, r)
+        -     end
+        -     function delayed_handler(r::Failure)
+        2         push!(suite.failures, r)
+        2         !CONFIG[:compact] && println(r)
+        -     end
+        -     function delayed_handler(r::Error)
+        2         push!(suite.errors, r)
+        2         !CONFIG[:compact] && println(r)
+        -     end
+        -     function delayed_handler(p::Pending)
+        3         push!(suite.pending, p)
+        -     end
+        -     delayed_handler
+        - end
+        - 
+        - # facts
+        - # Creates testing scope. It is responsible for setting up a testing
+        - # environment, which means constructing a `TestSuite`, generating
+        - # and registering test handlers, and reporting results.
+        - function facts(f::Function, desc)
+       12     suite = TestSuite(nothing, desc)
+        -     handler = make_handler(suite)
+        6     push!(handlers, handler)
+        6     print_header(suite)
+        6     f()
+       12     if !CONFIG[:compact]
+        -         # Print out summary of test suite
+        6         print(suite)
+        -     else
+        -         # If in compact mode, we need to display all the
+        -         # failures we hit along along the way
+        0         println()  # End line with dots
+        0         map(println, suite.failures)
+        0         map(println, suite.errors)
+        -     end
+       12     pop!(handlers)
+        - end
+        - facts(f::Function) = facts(f, nothing)
+        - 
+        - # context
+        - # Executes a battery of tests in some descriptive context, intended
+        - # for use inside of `facts`. Displays the string in default mode.
+        - # for use inside of facts
+        - global LEVEL = 0
+        - function context(f::Function, desc::AbstractString)
+       18     global LEVEL
+       18     push!(contexts, desc)
+       18     LEVEL += 1
+       36     !CONFIG[:compact] && println(INDENT^LEVEL, "> ", desc)
+       18     try
+       18         f()
+        -     finally
+       18         pop!(contexts)
+       18         LEVEL -= 1
+        -     end
+        - end
+        1 context(f::Function) = context(f, "")
+        - 
+        - # get_indent
+        - # Gets indent levels to use for displaying results
+        - function get_indent()
+       12     ind_level = isempty(handlers) ? 0 : LEVEL+1
+        4     return INDENT^ind_level, INDENT^(ind_level+1)
+        - end
+        - 
+        - ######################################################################
+        - 
+        - if VERSION < v"0.5.0-dev+2428"
+        -     # HACK: get the current line number
+        -     #
+        -     # This only works inside of a function body:
+        -     #
+        -     #     julia> hmm = function()
+        -     #                2
+        -     #                3
+        -     #                getline()
+        -     #            end
+        -     #
+        -     #     julia> hmm()
+        -     #     4
+        -     #
+        -     function getline()
+        -         bt = backtrace()
+        -         issecond = false
+        -         for frame in bt
+        -             lookup = ccall(:jl_lookup_code_address, Any, (Ptr{Void}, Int32), frame, 0)
+        -             if lookup != ()
+        -                 if issecond
+        -                     return lookup[3]
+        -                 else
+        -                     issecond = true
+        -                 end
+        -             end
+        -         end
+        -     end
+        - else
+      122     @noinline getline() = StackTraces.stacktrace()[2].line
+        - end
+        - 
+        6 pluralize(s::AbstractString, n::Number) = n == 1 ? s : string(s, "s")
+        - 
+        - # `getstats` return a dictionary with a summary over all tests run
+        4 getstats() = getstats(allresults)
+        - 
+        - function getstats(results)
+        2     s = 0
+        -     f = 0
+        -     e = 0
+        -     p = 0
+        2     for r in results
+       61         if isa(r, Success)
+       58             s += 1
+        3         elseif isa(r, Failure)
+        1             f += 1
+        2         elseif isa(r, Error)
+        1             e += 1
+        1         elseif isa(r, Pending)
+      122             p += 1
+        -         end
+        -     end
+        4     @assert(s+f+e+p == length(results))
+        2     @compat(Dict{String,Int}("nSuccesses" => s,
+        -                                  "nFailures" => f,
+        -                                  "nErrors" => e,
+        -                                  "nNonSuccessful" => f+e,
+        -                                  "nPending" => p))
+        - end
+        - 
+        - const allstats = getstats()
+        - 
+        - function updatestats!(stats)
+        0     for (key, value) in stats
+        0         allstats[key] += value
+        -     end
+        - end
+        - 
+        - function exitstatus()
+        1     global CONFIG
+        2     if CONFIG[:only_stats]
+        0         ns = allstats["nNonSuccessful"]
+        -     else
+        1         ns = getstats()["nNonSuccessful"]
+        -     end
+        2     ns > 0 && error("FactCheck finished with $ns non-successful tests.")
+        - end
+        - 
+        - ############################################################
+        - # Assertion helpers
+        - include("helpers.jl")
+        - 
+        - 
+        - end # module FactCheck
+        - 
