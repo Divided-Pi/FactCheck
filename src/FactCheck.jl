@@ -527,7 +527,7 @@ end
 pluralize(s::AbstractString, n::Number) = n == 1 ? s : string(s, "s")
 
 # `getstats` return a dictionary with a summary over all tests run
-getstats() = getstats(global allresults)
+getstats() = getstats(allresults)
 
 function getstats(results)
     s = 0
