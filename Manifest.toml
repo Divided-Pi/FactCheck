@@ -19,6 +19,12 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 deps = ["LinearAlgebra", "Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
+[[ImportAll]]
+deps = ["Test"]
+git-tree-sha1 = "cedbaf75814a31101cb9092115b2f0217d24c22d"
+uuid = "c65182e5-40f4-518f-8165-175b85689199"
+version = "1.0.3"
+
 [[InteractiveUtils]]
 deps = ["LinearAlgebra", "Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
