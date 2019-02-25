@@ -10,7 +10,7 @@ module TestFactCheck
 using FactCheck
 using Test
 using Compat
-import Pkg; Pkg.add("ImportAll")
+#import Pkg; Pkg.add("ImportAll")
 using ImportAll
 
 ############################################################
