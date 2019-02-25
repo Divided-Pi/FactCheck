@@ -1,6 +1,6 @@
-authors = ["Michael Bullman <bullman.michael@gmail.com>"]
 name = "FactCheck"
 uuid = "4a1cbfd0-3949-11e9-105c-c980ba067078"
+authors = ["Michael Bullman <bullman.michael@gmail.com>"]
 version = "0.1.0"
-
 [deps]
+Compat
